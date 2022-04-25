@@ -56,6 +56,13 @@ Additions to V1:
     Rules:
       - Given a `proposalId`, this function must return the quorum votes required for the proposal to succeed.
       - If `snapshot.totalSupply` equals `0`, `proposal.minQuorumVotes` must be returned to maintain backwards compatibility.
+      - Dynamic quorum reference code in it's simplest, linear, unparameterized form:
+        ```js
+        const consensus = 1 - (for_votes / (for_votes + against_votes));
+        const max_adjustment = max_quorum_votes_bps - min_quorum_votes_bps;
+        const quorumBPS = (max_adjustment * consensus) + min_quorum_votes_bps;
+        const quorum = (quorumBPS * total_supply) / 10_000;
+        ```
 
 Modifications to V1:
 
