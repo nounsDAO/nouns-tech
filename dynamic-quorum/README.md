@@ -14,7 +14,7 @@ This specification defines an upgrade to the `NounsDAOLogicV1` contract that rep
 
 The dynamic quorum must be implemented in a new Nouns DAO governance logic contract (`NounsDAOLogicV2`).
 
-Additions to V1:
+#### Additions to V1:
 
 1. `MIN_QUORUM_VOTES_BPS_LOWER_BOUND` (Public Constant) - The lower bound of minimum quorum votes basis points.
 2. `MIN_QUORUM_VOTES_BPS_UPPER_BOUND` (Public Constant) - The upper bound of minimum quorum votes basis points.
@@ -37,7 +37,7 @@ Additions to V1:
       - Emits `event MaxQuorumVotesBPSSet(uint256 oldMaxQuorumVotesBPS, uint256 newMaxQuorumVotesBPS)` event on success.
 8. `minQuorumVotes` (External View Function) - Current min quorum votes using Noun total supply.
 9. `maxQuorumVotes` (External View Function) - Current max quorum votes using Noun total supply.
-10. `minQuorumVotes` (`Proposal` Struct Member) - The minimum number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed at the time of proposal creation. Note: This is a rename of an existing struct member. See `Modifications to V1`.
+10. `minQuorumVotes` (`Proposal` Struct Member) - The minimum number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed at the time of proposal creation. Note: This is a rename of an existing struct member. See [Modifications to V1](#modifications-to-v1).
 11. `mapping(uint256 => StateSnapshot) public snapshot` (Public Mapping) - A small state snapshot that's taken at the time of proposal creation.
     Rules:
       - `StateSnapshot` struct:
@@ -64,7 +64,7 @@ Additions to V1:
         const quorum = (quorumBPS * total_supply) / 10_000;
         ```
 
-Modifications to V1:
+#### Modifications to V1:
 
 1. `quorumVotesBPS` (Public State Variable) should be renamed to `minQuorumVotesBPS`.
 2. `quorumVotes` (`Proposal` Struct Member ) should be renamed to `minQuorumVotes`.
