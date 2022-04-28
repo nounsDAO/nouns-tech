@@ -35,19 +35,34 @@ The dynamic quorum must be implemented as an upgrade to the Nouns DAO governance
       /*
         DAO-Controlled Configuration Values:
 
+        min_quorum_bps - Minimum qourum in basis points
+        max_quorum_bps - Maximum quorum in basis points
         slope_coefficient - Adjust the slope of the dynamic quorum
         curvature_coefficient - Adjust the rate of change in the slope of the dynamic quorum
         offset_bps - Adjust the point at which the quorum adjustment activates
+
+        Dynamic Qourum Calculation:
+
+        quorum_adjustment: (ax² + bx) + max(c - d, 0)
+        quorum = min((min_quorum_bps + quorum_adjustment_bps) / 10_000, max_quorum)
+
+        Reference:
       */
 
-      // Dynamic Quorum Calculation:
-      function quorum_adjustment_bps(against_votes_adjusted_bps) {
+      function get_percent(bps, num) {
+        return (bps * num) / 10_000
+      }
+      function get_quorum_adjustment_bps(against_votes_adjusted_bps) {
         return (curvature_coefficient * against_votes_adjusted_bps²) + (slope_coefficient * against_votes_adjusted_bps)
       }
-
+      function max_quorum() {
+        return get_percent(max_quorum_bps, total_supply)
+      }
+      
       adjusted_against_votes_bps = against_votes_bps > offset_bps ? against_votes_bps - offset_bps : 0
-      quorum_adjustment = (quorum_adjustment_bps(adjusted_against_votes_bps) * total_supply) / 10_000
-      quorum = min(min_quorum(total_supply) + quorum_adjustment, max_quorum(total_supply))
+      quorum_adjustment_bps = get_quorum_adjustment_bps(adjusted_against_votes_bps)
+      adjusted_quorum = get_percent(min_quorum_bps + quorum_adjustment_bps, total_supply)
+      quorum = min(adjusted_quorum, max_quorum)
       ```
 - `_setQuorumVotesBPS` must be removed as it no longer serves a purpose.
 -  `minQuorumVotes` must be exposed as an external view function, which returns the current minimum quorum votes using Noun total supply.
