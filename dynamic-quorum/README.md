@@ -2,7 +2,7 @@
 
 ## Simple Summary
 
-A dynamic vote quorum that adjusts as a function of for/against votes, allowing uncontested proposals to pass at a minimum defined quorum, while requiring higher assurance on contested proposals.
+A dynamic vote quorum that adjusts as a function of against votes, allowing uncontested proposals to pass at a minimum defined quorum, while requiring higher assurance on contested proposals.
 
 ## Abstract
 
@@ -38,24 +38,31 @@ The dynamic quorum must be implemented in a new Nouns DAO governance logic contr
 8. `minQuorumVotes` (External View Function) - Current min quorum votes using Noun total supply.
 9. `maxQuorumVotes` (External View Function) - Current max quorum votes using Noun total supply.
 10. `minQuorumVotes` (`Proposal` Struct Member) - The minimum number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed at the time of proposal creation. Note: This is a rename of an existing struct member. See [Modifications to V1](#modifications-to-v1).
-11. `mapping(uint256 => StateSnapshot) public snapshot` (Public Mapping) - A small state snapshot that's taken at the time of proposal creation.
-    Rules:
-      - `StateSnapshot` struct:
-        ```solidity
-        struct StateSnapshot {
-            /// @notice Total Noun supply at the time of proposal creation
-            uint256 totalSupply;
-            /// @notice Minimum quorum votes BPS at the time of proposal creation
-            uint256 minQuorumVotesBPS;
-            /// @notice Maximum quorum votes BPS at the time of proposal creation
-            uint256 maxQuorumVotesBPS;
-        }
-        ```
-      - Value is set in `propose` function. `uint256` key is the `proposalCount`.
+11. `totalSupply` (`Proposal` Struct Member) - The total supply of Nouns at the time of proposal creation.
 12. `quorumVotes` (Public View Function) - Quorum votes required for a specific proposal to succeed.
     Rules:
       - Given a `proposalId`, this function must return the quorum votes required for the proposal to succeed.
       - If `snapshot.totalSupply` equals `0`, `proposal.minQuorumVotes` must be returned to maintain backwards compatibility.
+      - Dynamic quorum function is as follows (pseudocode):
+        ```js
+        /*
+          DAO-Controlled Configuration Values:
+
+          slope_coefficient - Adjust the slope of the dynamic quorum
+          curvature_coefficient - Adjust the rate of change in the slope of the dynamic quorum
+          offset_bps - Adjust the point at which the quorum adjustment activates
+        */
+
+        // Dynamic Quorum Calculation:
+        function quorum_adjustment_bps(against_votes_adjusted_bps) {
+          return (curvature_coefficient * against_votes_adjusted_bps) + (slope_coefficient * against_votes_adjusted_bps)
+        }
+
+        adjusted_against_votes_bps = against_votes_bps > offset_bps ? against_votes_bps - offset_bps : 0
+        quorum_adjustment = (quorum_adjustment_bps(adjusted_against_votes_bps) * total_supply) / 10_000
+        quorum = min(min_quorum(total_supply) + quorum_adjustment, max_quorum(total_supply))
+        ```
+13. All dynamic quorum configuration values must be checkpointed by block number. This will allow `quorumVotes` to access historical values from the proposal creation block.
 
 #### Modifications to V1:
 
@@ -65,4 +72,4 @@ The dynamic quorum must be implemented in a new Nouns DAO governance logic contr
 
 ### Implementation
 
-Not Started.
+In Progress.
