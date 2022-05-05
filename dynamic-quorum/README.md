@@ -35,13 +35,13 @@ The dynamic quorum must be implemented as an upgrade to the Nouns DAO governance
       /*
         DAO-Controlled Configuration Values:
 
-        min_quorum_bps - Minimum qourum in basis points
+        min_quorum_bps - Minimum quorum in basis points
         max_quorum_bps - Maximum quorum in basis points
         slope_coefficient - Adjust the slope of the dynamic quorum
         curvature_coefficient - Adjust the rate of change in the slope of the dynamic quorum
         offset_bps - Adjust the point at which the quorum adjustment activates
 
-        Dynamic Qourum Calculation:
+        Dynamic Quorum Calculation:
 
         quorum_adjustment: (ax² + bx) + max(c - d, 0)
         quorum = min((min_quorum_bps + quorum_adjustment_bps) / 10_000, max_quorum)
