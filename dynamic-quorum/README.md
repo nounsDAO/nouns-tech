@@ -37,8 +37,8 @@ The dynamic quorum must be implemented as an upgrade to the Nouns DAO governance
 
         min_quorum_bps - Minimum quorum in basis points
         max_quorum_bps - Maximum quorum in basis points
-        slope_coefficient - Adjust the slope of the dynamic quorum
-        curvature_coefficient - Adjust the rate of change in the slope of the dynamic quorum
+        linear_coefficient - Adjust the slope of the dynamic quorum
+        quadratic_coefficient - Adjust the rate of change in the slope of the dynamic quorum
         offset_bps - Adjust the point at which the quorum adjustment activates
 
         Dynamic Quorum Calculation:
@@ -53,7 +53,7 @@ The dynamic quorum must be implemented as an upgrade to the Nouns DAO governance
         return (bps * num) / 10_000
       }
       function get_quorum_adjustment_bps(against_votes_adjusted_bps) {
-        return (curvature_coefficient * against_votes_adjusted_bps²) + (slope_coefficient * against_votes_adjusted_bps)
+        return (quadratic_coefficient * against_votes_adjusted_bps²) + (linear_coefficient * against_votes_adjusted_bps)
       }
       function max_quorum() {
         return get_percent(max_quorum_bps, total_supply)
