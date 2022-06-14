@@ -18,8 +18,7 @@ The dynamic quorum must be implemented as an upgrade to the Nouns DAO governance
   - Values:
     - **Minimum Quorum Votes Basis Points** - The minimum basis point number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed.
     - **Maximum Quorum Votes Basis Points** - The maximum basis point number of votes in support of a proposal required in order for a quorum to be reached and for a vote to succeed.
-    - **Quorum Votes Offset Basis Points** - The offset used to modify the point at which the quorum adjustment activates.
-    - **Quorum Polynomial Coefficients (2)** - The coefficients used to control the dynamic quorum slope and curvature.
+    - **Dynamic Quorum Linear Coefficient** - The coefficient used to control the dynamic quorum slope.
   - Rules:
     - These values must be **checkpointed** by block number upon update. A publicly exposed function must allow for historical configuration values to be read.
     - Minimum quorum votes BPS must be guarded by constant lower and upper bounds.
@@ -38,13 +37,10 @@ The dynamic quorum must be implemented as an upgrade to the Nouns DAO governance
         min_quorum_bps - Minimum quorum in basis points
         max_quorum_bps - Maximum quorum in basis points
         linear_coefficient - Adjust the slope of the dynamic quorum
-        quadratic_coefficient - Adjust the rate of change in the slope of the dynamic quorum
-        offset_bps - Adjust the point at which the quorum adjustment activates
 
         Dynamic Quorum Calculation:
 
-        quorum_adjustment: (ax² + bx) + max(c - d, 0)
-        quorum = min((min_quorum_bps + quorum_adjustment_bps) / 10_000, max_quorum)
+        quorum = min((min_quorum_bps + bx) / 10_000, max_quorum)
 
         Reference:
       */
@@ -53,14 +49,13 @@ The dynamic quorum must be implemented as an upgrade to the Nouns DAO governance
         return (bps * num) / 10_000
       }
       function get_quorum_adjustment_bps(against_votes_adjusted_bps) {
-        return (quadratic_coefficient * against_votes_adjusted_bps²) + (linear_coefficient * against_votes_adjusted_bps)
+        return linear_coefficient * against_votes_adjusted_bps
       }
       function max_quorum() {
         return get_percent(max_quorum_bps, total_supply)
       }
-      
-      adjusted_against_votes_bps = against_votes_bps > offset_bps ? against_votes_bps - offset_bps : 0
-      quorum_adjustment_bps = get_quorum_adjustment_bps(adjusted_against_votes_bps)
+
+      quorum_adjustment_bps = get_quorum_adjustment_bps(against_votes_bps)
       adjusted_quorum = get_percent(min_quorum_bps + quorum_adjustment_bps, total_supply)
       quorum = min(adjusted_quorum, max_quorum)
       ```
