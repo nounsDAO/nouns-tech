@@ -21,7 +21,7 @@ Vote Functions:
 
 Rules:
 
-1. `msg.sender` will only be refunded if they have at least one vote. This prevents the depletion of refund reserves by non-vote holders at no cost.
+1. `msg.sender` must only be refunded if they have at least one vote. This prevents the depletion of refund reserves by non-vote holders at no cost.
 2. The gas price used in the refund calculation must be capped using a `MAX_REFUND_PRIORITY_FEE` constant. This enables the transaction to succeed while providing a partial refund if a high priority fee is used.
 3. No refund will be provided if the governance contract has no balance.
 4. A partial refund will be provided if the contract has a non-zero balance that is less than the full refund amount.
