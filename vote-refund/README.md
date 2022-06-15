@@ -8,6 +8,8 @@ Atomically refund vote transaction costs to governance participants.
 
 This specification introduces four functions to the governance logic contract. These include two additional vote functions, which atomically refund vote transaction costs to governance participants, an ether withdrawal function, and a receive ether function.
 
+The governance logic contract will need to be filled with ETH in order to send refunds. As an example, this can be done by sending ETH from the treasury via a proposal.
+
 This feature will NOT refund voters for past transaction costs.
 
 ## Technical Specification
