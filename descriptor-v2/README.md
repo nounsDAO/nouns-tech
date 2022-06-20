@@ -26,6 +26,8 @@ A combination of several techniques will be used in order to reduce the storage 
 The current implementation of the RLE encoding is limited to the length of a row, i.e if it is encoding 2 rows of blue pixels, the encoding will have one RLE per row.
 By allowing the encoding to span across several rows, the encoding can be more effecient.
 
+Note that each RLE tuple is limited to a length of 255. If a run-length is greater than 255, it must be broken to multiple tuples.
+
 This will require:
 
 1. Updating the encoder (javascript code) to allow encoding multiple lines
