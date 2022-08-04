@@ -18,6 +18,24 @@ This specification introduces two new contracts that facilitate stablecoin payme
 
 ### Overview
 
+#### Interaction flow
+
+1. A proposal is created, where the DAO wants to pay the builder $100K:
+   1. Assuming ETH/USD is $1500, and a volatility buffer of 2x
+   2. The proposal transaction would be:
+      `NounsStablecoinPayments.mintIOUs(recipient, 100_000)`
+      where `msg.value = NounsStablecoinPayments.ethNeeded(100_000, 2)`
+2. Upon proposal execution:
+   1. Proposal recipient is minted 100K NOU tokens
+   2. 133.33 ETH is sent from the treasury to NounsStablecoinPayments
+3. Arbitrageurs sell USD to NounsStablecoinPayments in exchange for ETH:
+   1. They call `NounsStablecoinPayments.sellStablecoin(100_000)` (or smaller amounts across multiple txs)
+      1. Expected to happen when `NounsStablecoinPayments.price()` is better than other DEX prices
+   2. NounsStablecoinPayments's USD balance grows by $100K, and an appropriate ETH balance is spent
+4. Proposal recipient redeems USD in exchange for NOU tokens:
+   1. They call `NounsStablecoinPayments.redeem()`
+   2. 100K NOU tokens are burned, and 100K USD is transferred from NounsStablecoinPayments to recipient
+
 #### `NOU` contract
 
 A new ERC20 token contract:
@@ -35,20 +53,26 @@ A new ERC20 token contract:
 
 A new contract that helps the DAO acquire stablecoins by buying them from bots for a margin, and helps proposal recipients redeem stablecoin payments.
 
-##### Configuration variables
+##### Contract state variables
 
-- `Stablecoin` the address of the ERC20 token to use as USD, e.g. USDC or DAI
-- `BotIncentiveBPs` the basis points to add on top of the oracle price to further incentivize bots to sell USD to this contract
-- `Oracle` the Chainlink Stablecoin/ETH oracle address
-- `NOU` the address of the NOU token ERC20 contract
-- `Admin` the address of the admin that can withdraw this contract's balances
-- `FundingRate` the value multiplier that determines how much ETH funding is required to mint NOU tokens; e.g. if set to 2.5, and the DAO wants to mint 100 NOU, it would need to send ETH worth 250 USD
+Immutable:
+
+- `iouToken` the address of the NOU token ERC20 contract
+- `stablecoin` the address of the ERC20 token to use as USD, e.g. USDC or DAI
+- `oracle` the Chainlink Stablecoin/ETH oracle address
+
+Mutable:
+
+- `baselineStablecoinAmount` how much stablecoin should the contract buy on top of outstanding IOU, to serve as a buffer than can expedite recipient redemption
+- `botIncentiveBPs` the basis points to add on top of the oracle price to further incentivize bots to sell USD to this contract
+- `admin` the address of the admin that can withdraw this contract's balances
 
 ##### View functions
 
-- `function stablecoinAmountNeeded()` returns the amount of USD the DAO needs to buy, should be the same as `NOU.totalSupply() - Stablecoin.balanceOf(this)`
-- `function price(uint usdAmount)` returns the amount of ETH this contract is willing to pay for the given `usdAmount`, taking into account oracle pricing and the additional bot incentive factor
+- `function stablecoinAmountNeeded()` returns the amount of USD the DAO needs to buy, should be the same as `iouToken.totalSupply() - stablecoin.balanceOf(this) + baselineStablecoinAmount`
+- `function price()` returns the amount stablecoin this contract is asking for in exchange for one ETH, taking into account oracle pricing and the additional bot incentive factor: `Chainlink(eth-usd.data.eth).latestRoundData().answer * (10_000 + botIncentiveBPs) / 10_000`
 - `function stablecoinBalance()` returns the contract's balance in the desired stablecoin
+- `function ethNeeded(uint additionalUsdAmount, uint bufferFactor)` returns the amount of additional ETH needed in the contract to buy the USD backing needed for additionalUsdAmount + any unbacked minted NOU; `bufferFactor` is a volatility buffer scalar, e.g. when set to 2 the contract will ask for ETH with 2 times the USD value it needs to buy
 
 ##### `sellStablecoin` transaction
 
@@ -57,23 +81,31 @@ A new contract that helps the DAO acquire stablecoins by buying them from bots f
 Rules
 
 - `amount` cannot exceed `stablecoinAmountNeeded()`
-- `msg.value == price(amount)`
 - `msg.sender` must approve this contract to spend `amount` of stablecoin, which it will transfer to itself
+- should revert if `this.balance < amount / price()`
 
 ##### `redeem` transactions
+
+Non-strict:
 
 - `function redeem(uint amount)` redeem `amount` stablecoins in exchange for the same amount of NOU tokens you own
 - `function redeem()` same as above, using `msg.sender`'s NOU balance as the amount
 
+Strict:
+
+- `function redeemExact(uint amount)` redeem `amount` stablecoins in exchange for the same amount of NOU tokens you own
+- `function redeemExact()` same as above, using `msg.sender`'s NOU balance as the amount
+
 Rules
 
-- `NOU.balanceOf(msg.sender) > 0`
-- `amount` cannot exceed `NOU.balanceOf(msg.sender)`
-- `amount` cannot exceed `Stablecoin.balanceOf(this)`
+- `iouToken.balanceOf(msg.sender) > 0` must be true
+- `amount` cannot exceed `iouToken.balanceOf(msg.sender)`
+- must call `iouToken.burn` with the amount of stablecoins sent to `msg.sender`
+- `redeemExact` functions should revert if `amount > stablecoin.balanceOf(this)`
 
-##### `mintNOU` transaction
+##### `mintIOUs` transaction
 
-- `function mintNOU(uint amount) payable` mints `amount` new NOU tokens, and accepts ETH payments, allowing `NounsDAOExecutor` to provide ETH funding for buying `amount` stablecoins later
+- `function mintIOUs(address to, uint amount) payable` mints `amount` new `iouToken`s to `to`, and accepts ETH payments, allowing `NounsDAOExecutor` to provide ETH funding for buying `amount` stablecoins later
 
 Rules:
 
@@ -82,9 +114,15 @@ Rules:
 
 ##### Admin transactions
 
-- All configuration variables are set in the constructor
 - `function withdrawETH()`
 - `function withdrawStablecoin()`
+- `function setBotIncentiveBPs(uint newBotIncentiveBPs)`
+- `function setAdmin(address newAdmin)`
+- `function setbBaselineStablecoinAmount(uint newAmount)`
+
+##### `receive` transaction
+
+- This contract accepts ETH, allowing the DAO to top off its ETH balance without having to mint iou tokens
 
 Rules:
 
