@@ -58,6 +58,7 @@ A new contract that helps the DAO acquire stablecoins by buying them from bots f
 Immutable:
 
 - `iouToken` the address of the NOU token ERC20 contract
+- `iouTokenDecimals` the decimal places of `iouToken`
 - `stablecoin` the address of the ERC20 token to use as USD, e.g. USDC or DAI
 - `oracle` the Chainlink Stablecoin/ETH oracle address
 
