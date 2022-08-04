@@ -70,9 +70,10 @@ Mutable:
 ##### View functions
 
 - `function stablecoinAmountNeeded()` returns the amount of USD the DAO needs to buy, should be the same as `iouToken.totalSupply() - stablecoin.balanceOf(this) + baselineStablecoinAmount`
-- `function price()` returns the amount stablecoin this contract is asking for in exchange for one ETH, taking into account oracle pricing and the additional bot incentive factor: `Chainlink(eth-usd.data.eth).latestRoundData().answer * (10_000 + botIncentiveBPs) / 10_000`
+- `function price()` returns the amount stablecoin this contract is asking for in exchange for one ETH, taking into account oracle pricing and the additional bot incentive factor: `Chainlink(eth-usd.data.eth).latestRoundData().answer * (10_000 + botIncentiveBPs) / 10_000` (the chainlink address above is just for example purposes)
 - `function stablecoinBalance()` returns the contract's balance in the desired stablecoin
 - `function ethNeeded(uint additionalUsdAmount, uint bufferFactor)` returns the amount of additional ETH needed in the contract to buy the USD backing needed for additionalUsdAmount + any unbacked minted NOU; `bufferFactor` is a volatility buffer scalar, e.g. when set to 2 the contract will ask for ETH with 2 times the USD value it needs to buy
+  - `bufferFactor` should have a hard-coded lower bound, e.g. 1.2 for 20% over-funding
 
 ##### `sellStablecoin` transaction
 
