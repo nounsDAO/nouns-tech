@@ -122,13 +122,17 @@ Rules:
 - `function setAdmin(address newAdmin)`
 - `function setBaselineStablecoinAmount(uint newAmount)`
 
+Rules:
+
+- `msg.sender == admin`
+
 ##### `receive` transaction
 
 - This contract accepts ETH, allowing the DAO to top off its ETH balance without having to mint iou tokens
 
 Rules:
 
-- `msg.sender == admin`
+- should not revert
 
 ### Implementation
 
