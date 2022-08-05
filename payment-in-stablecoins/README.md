@@ -148,7 +148,7 @@ The interface `NounsStablecoinPayments` uses to fetch stablecoin/ETH prices.
 
 ##### Constants
 
-- `TIMEOUT` the maximum oracle refresh lag considered acceptable
+- `STALE_AFTER` the maximum oracle refresh lag considered acceptable
 
 ##### State variables
 
@@ -160,7 +160,7 @@ The interface `NounsStablecoinPayments` uses to fetch stablecoin/ETH prices.
 
 Rules:
 
-- Reverts if Chainlink's latest price timestamp is older than `TIMEOUT`
+- Reverts if Chainlink's latest price timestamp is older than `STALE_AFTER`
 
 ### Implementation
 
