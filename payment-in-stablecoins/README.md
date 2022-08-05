@@ -64,6 +64,7 @@ Immutable:
 
 Mutable:
 
+- `priceFeed` the address of the `IPriceFeed` contract used to fetch stablecoin/ETH prices
 - `baselineStablecoinAmount` how much stablecoin should the contract buy on top of outstanding IOU, to serve as a buffer than can expedite recipient redemption
 - `botIncentiveBPs` the basis points to add on top of the oracle price to further incentivize bots to sell USD to this contract
 - `admin` the address of the admin that can withdraw this contract's balances
@@ -71,7 +72,7 @@ Mutable:
 ##### View functions
 
 - `function stablecoinAmountNeeded()` returns the amount of USD the DAO needs to buy, should be the same as `iouToken.totalSupply() - stablecoin.balanceOf(this) + baselineStablecoinAmount`
-- `function price()` returns the amount stablecoin this contract is asking for in exchange for one ETH, taking into account oracle pricing and the additional bot incentive factor: `Chainlink(eth-usd.data.eth).latestRoundData().answer * (10_000 + botIncentiveBPs) / 10_000` (the chainlink address above is just for example purposes)
+- `function price()` returns the amount stablecoin this contract is asking for in exchange for one ETH, taking into account oracle pricing and the additional bot incentive factor: `priceFeed.price() * (10_000 + botIncentiveBPs) / 10_000` (the chainlink address above is just for example purposes)
 - `function stablecoinBalance()` returns the contract's balance in the desired stablecoin
 - `function ethNeeded(uint additionalUsdAmount, uint bufferFactor)` returns the amount of additional ETH needed in the contract to buy the USD backing needed for additionalUsdAmount + any unbacked minted NOU; `bufferFactor` is a volatility buffer scalar, e.g. when set to 2 the contract will ask for ETH with 2 times the USD value it needs to buy
   - `bufferFactor` should have a hard-coded lower bound, e.g. 1.2 for 20% over-funding
@@ -121,6 +122,7 @@ Rules:
 - `function setBotIncentiveBPs(uint newBotIncentiveBPs)`
 - `function setAdmin(address newAdmin)`
 - `function setBaselineStablecoinAmount(uint newAmount)`
+- `function setPriceFeed(address newPriceFeed)`
 
 Rules:
 
@@ -133,6 +135,32 @@ Rules:
 Rules:
 
 - should not revert
+
+#### `IPriceFeed` interface
+
+The interface `NounsStablecoinPayments` uses to fetch stablecoin/ETH prices.
+
+- `function price()` returns the latest price
+
+#### `PriceFeed` contract
+
+`PriceFeed` is the first implementation of `IPriceFeed`. It uses Chainlink as its only oracle, to avoid the extra gas costs of using multiple oracles, under the assumption that Chainlink is highly available.
+
+##### Constants
+
+- `TIMEOUT` the maximum oracle refresh lag considered acceptable
+
+##### State variables
+
+- `immutable chainlinkAggregator` the address of the Chainlink price aggregator to fetch prices from
+
+##### `price` view function
+
+- `function price()` returns the latest price from Chainlink
+
+Rules:
+
+- Reverts if Chainlink's latest price timestamp is older than `TIMEOUT`
 
 ### Implementation
 
