@@ -4,6 +4,20 @@
 
 Allows the DAO to execute proposals that send funds denominated in USD. This change addresses the ETH/USD price volatility risk both sides suffer from today, as well as the DAO's ability to perform ETH-to-USD swaps trustlessly.
 
+### Simple User flow
+
+1. Proposal creation: new UI will allow proposer to choose to pay out in USD and specify the amount, e.g. 50K USD
+2. Proposal execution: the builder (proposal recipient) is minted 50K NOU tokens (Nouns Owe You)
+3. Builder USD redemption: the builder clicks a "Redeem USD" button on the proposal page, and their Ethereum account is credited with 50K USDC (their NOU tokens are burned)
+
+### Detailed User Flow
+
+Once NOU tokens are minted, the new payments contract offers trading bots the opportunity to sell it stablecoins (e.g. USDC) in exchange for ETH. Bots are incentivized by offering a price premium, providing them an arbitrage opportunity.
+
+Since acquiring USD from bots can take time, it's not guaranteed that builders will be able to claim the full amount immediately. We expect the proposal page to clearly show redeemable vs non-redeemable amounts.
+
+The payments contract has a DAO-controlled configuration value of a nominal USD buffer to allow more immediate redemptions.
+
 ## Abstract
 
 This specification introduces two new contracts that facilitate stablecoin payments:
