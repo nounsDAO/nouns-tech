@@ -120,7 +120,7 @@ Rules:
 - `function withdrawStablecoin()`
 - `function setBotIncentiveBPs(uint newBotIncentiveBPs)`
 - `function setAdmin(address newAdmin)`
-- `function setbBaselineStablecoinAmount(uint newAmount)`
+- `function setBaselineStablecoinAmount(uint newAmount)`
 
 ##### `receive` transaction
 
