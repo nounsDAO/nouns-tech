@@ -37,7 +37,7 @@ This specification introduces two new contracts that facilitate stablecoin payme
 1. A proposal is created, where the DAO wants to pay the builder $100K:
    1. Assuming ETH/USD is $1500, and a volatility buffer of 2x
    2. The proposal transaction would be:
-      `NounsStablecoinPayments.mintIOUs(recipient, 100_000)`
+      `NounsStablecoinPayments.sendOrMint(recipient, 100_000)`
       where `msg.value = NounsStablecoinPayments.ethNeeded(100_000, 2)`
 2. Upon proposal execution:
    1. Proposal recipient is minted 100K NOU tokens
@@ -120,14 +120,16 @@ Rules
 - must call `iouToken.burn` with the amount of stablecoins sent to `msg.sender`
 - `redeemExact` functions should revert if `amount > stablecoin.balanceOf(this)`
 
-##### `mintIOUs` transaction
+##### `sendOrMint` transaction
 
-- `function mintIOUs(address to, uint amount) payable` mints `amount` new `iouToken`s to `to`, and accepts ETH payments, allowing `NounsDAOExecutor` to provide ETH funding for buying `amount` stablecoins later
+- `function sendOrMint(address to, uint amount) payable`
+  - First attempts to send the full amount in stablecoins
+  - If `stablecoin.balance(this) < amount` the excess amount due is minting in `iouToken`
+  - Accepts ETH payments, allowing `NounsDAOExecutor` to provide ETH funding for buying `amount` stablecoins later
 
 Rules:
 
 - `msg.sender == admin`
-- `msg.value >= amount * FundingRate`
 
 ##### Admin transactions
 
