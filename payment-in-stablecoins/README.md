@@ -7,26 +7,36 @@ Allows the DAO to execute proposals that send funds denominated in USD. This cha
 ### Simple User flow
 
 1. Proposal creation: new UI will allow proposer to choose to pay out in USD and specify the amount, e.g. 50K USD
-2. Proposal execution: the builder (proposal recipient) is minted 50K NOU tokens (Nouns Owe You)
-3. Builder USD redemption: the builder clicks a "Redeem USD" button on the proposal page, and their Ethereum account is credited with 50K USDC (their NOU tokens are burned)
+2. Proposal execution: builder receives the desired USD amount
+   1. If the DAO doesn't have sufficient USD, a debt is registered on chain, and shortly after a trading bot would sell the DAO the outstanding USD and immediately close the builder's balance
 
 ### Detailed User Flow
 
-Once NOU tokens are minted, the new payments contract offers trading bots the opportunity to sell it stablecoins (e.g. USDC) in exchange for ETH. Bots are incentivized by offering a price premium, providing them an arbitrage opportunity.
+TokenBuyer is open to trading whenever:
 
-Since acquiring USD from bots can take time, it's not guaranteed that builders will be able to claim the full amount immediately. We expect the proposal page to clearly show redeemable vs non-redeemable amounts.
+1. its USD balance is below the desired position, or
+2. the DAO has a debt towards a builder
 
-The payments contract has a DAO-controlled configuration value of a nominal USD buffer to allow more immediate redemptions.
+When TokenBuyer is open to trading, it offers trading bots the opportunity to sell their stablecoins (e.g. USDC) in exchange for ETH. Bots are incentivized by offering a price premium, providing them an arbitrage opportunity.
+
+Since acquiring USD from bots can take time, we expect the proposal page to clearly show proposal builders their outstanding balance and explain the balance should be settled shortly.
+
+TokenBuyer's USD position (baseline amount) configuration value helps mitigate debt delays: the higher the position, the less proposals will ever have to enter debt state.
 
 ## Abstract
 
 This specification introduces two new contracts that facilitate stablecoin payments:
 
-- `NOU` a new ERC20 token the DAO can mint to say "I owe you this amount of USD"
-- `NounsStablecoinPayments` a contract that:
-  - allows the DAO to mint NOU tokens as payment to proposal recipients
-  - allows anyone to sell it stablecoins in exchange for ETH with some additional incentive
-  - allows proposal recipients to redeem NOU for stablecoins
+1. `TokenBuyer`, a contract that:
+
+   1. allows anyone to sell it stablecoins in exchange for ETH with some additional incentive
+   2. funds the `Payer` contract with said stablecoins
+   3. auto-pays `Payer` debts upon receiving stablecoins
+
+2. `Payer`, a contract that:
+   1. allows the DAO to pay builders in stablecoins (e.g. USDC)
+   2. registers debt when the DAO's obligations exceed its stabecoin balance
+   3. allows anyone to run its outstanding debt payment function
 
 ## Technical Specification
 
@@ -34,150 +44,209 @@ This specification introduces two new contracts that facilitate stablecoin payme
 
 #### Interaction flow
 
-1. A proposal is created, where the DAO wants to pay the builder $100K:
-   1. Assuming ETH/USD is $1500, and a volatility buffer of 2x
-   2. The proposal transaction would be:
-      `NounsStablecoinPayments.sendOrMint(recipient, 100_000)`
-      where `msg.value = NounsStablecoinPayments.ethNeeded(100_000, 2)`
+1. A proposal is created, where the DAO wants to pay the builder $100K, with the following transactions
+   1. `Payer.sendOrRegisterDebt(recipient, 100_000)`
+   2. send TokenBuyer ETH at the amount of `TokenBuyer.ethNeeded(100_000, 2)` (assuming we want a 2x volatility buffer)
 2. Upon proposal execution:
-   1. Proposal recipient is minted 100K NOU tokens
-   2. 133.33 ETH is sent from the treasury to NounsStablecoinPayments
-3. Arbitrageurs sell USD to NounsStablecoinPayments in exchange for ETH:
-   1. They call `NounsStablecoinPayments.sellStablecoin(100_000)` (or smaller amounts across multiple txs)
-      1. Expected to happen when `NounsStablecoinPayments.price()` is better than other DEX prices
-   2. NounsStablecoinPayments's USD balance grows by $100K, and an appropriate ETH balance is spent
-4. Proposal recipient redeems USD in exchange for NOU tokens:
-   1. They call `NounsStablecoinPayments.redeem()`
-   2. 100K NOU tokens are burned, and 100K USD is transferred from NounsStablecoinPayments to recipient
+   1. Proposal recipient receives 100K stablecoins (e.g. USDC)
+   2. 133.33 ETH is sent from the treasury to `TokenBuyer` (assuming ETH/USD is $1500 and 2x buffer above)
+3. Arbitrageurs sell USD to `TokenBuyer` in exchange for ETH:
+   1. They call `TokenBuyer.buyETH(100_000)` (or smaller amounts across multiple txs)
+      1. Expected to happen when `TokenBuyer.price()` is better than other DEX prices
+   2. `Payer`'s USD balance grows by $100K, and an appropriate ETH balance is spent
 
-#### `NOU` contract
+### `TokenBuyer` contract
 
-A new ERC20 token contract:
+A new contract that helps the DAO acquire stablecoins by buying them from bots for a margin.
 
-- Inherits from OpenZeppelin's `AccessControlEnumerable`
-  - Assigns the `ADMIN_ROLE` to an `admin` provided in the constructor; admin can administer its own role and all other roles
-- `function mint(address recipient, uint amount)`
-  - Mints `amount` tokens to `recipient`
-  - Permits only senders of role `MINTER_ROLE`
-- `function burn(address from, uint amount)`
-  - Burns `amount` tokens from `from`'s account
-  - Permits only senders of role `BURNER_ROLE`
-
-#### `NounsStablecoinPayments` contract
-
-A new contract that helps the DAO acquire stablecoins by buying them from bots for a margin, and helps proposal recipients redeem stablecoin payments.
-
-##### Contract state variables
+#### Contract state variables
 
 Immutable:
 
-- `iouToken` the address of the NOU token ERC20 contract
-- `stablecoin` the address of the ERC20 token to use as USD, e.g. USDC or DAI
-- `stablecoinDecimals` the decimal places of `stablecoin`
-- `oracle` the Chainlink Stablecoin/ETH oracle address
+- `paymentToken` the ERC20 token to use as USD, e.g. USDC
+- `paymentTokenDecimalsDigits` as `10^paymentToken.decimals()`, used in conversions between token decimals and ETH decimals (18)
 
 Mutable:
 
+- `admin` contract admin, allowed to do certain lower risk operations
+- `payer` the `Payer` contract it helps fund with stablecoins
 - `priceFeed` the address of the `IPriceFeed` contract used to fetch stablecoin/ETH prices
-- `baselineStablecoinAmount` how much stablecoin should the contract buy on top of outstanding IOU, to serve as a buffer than can expedite recipient redemption
-- `botIncentiveBPs` the basis points to add on top of the oracle price to further incentivize bots to sell USD to this contract
-- `admin` the address of the admin that can withdraw this contract's balances
+- `baselineStablecoinAmount` The minimum `paymentToken` balance the `payer` contract should have
+- `minAdminBaselinePaymentTokenAmount` The minimum value for `baselinePaymentTokenAmount` that `admin` is allowed to set
+- `maxAdminBaselinePaymentTokenAmount` The maximum value for `baselinePaymentTokenAmount` that `admin` is allowed to set
+- `botDiscountBPs` the amount of basis points to decrease the price by, to increase the incentive to transact with this contract
+- `minAdminBotDiscountBPs` The minimum value for `botDiscountBPs` that `admin` is allowed to set
+- `maxAdminBotDiscountBPs` The maximum value for `botDiscountBPs` that `admin` is allowed to set
 
-##### View functions
+#### View functions
 
-- `function stablecoinAmountNeeded()` returns the amount of USD the DAO needs to buy, should be the same as `iouToken.totalSupply() - stablecoin.balanceOf(this) + baselineStablecoinAmount`
-- `function price()` returns the amount stablecoin this contract is asking for in exchange for one ETH, taking into account oracle pricing and the additional bot incentive factor: `priceFeed.price() * (10_000 + botIncentiveBPs) / 10_000` (the chainlink address above is just for example purposes)
-- `function stablecoinBalance()` returns the contract's balance in the desired stablecoin
-- `function ethNeeded(uint additionalUsdAmount, uint bufferFactor)` returns the amount of additional ETH needed in the contract to buy the USD backing needed for additionalUsdAmount + any unbacked minted NOU; `bufferFactor` is a volatility buffer scalar, e.g. when set to 2 the contract will ask for ETH with 2 times the USD value it needs to buy
-  - `bufferFactor` should have a hard-coded lower bound, e.g. 1.2 for 20% over-funding
+`function ethNeeded(uint256 additionalTokens, uint256 bufferBPs) public view returns (uint256)`
 
-##### `sellStablecoin` transaction
+- Get how much ETH this contract needs in order to fund its current obligations plus `additionalTokens`, with a safety buffer `bufferBPs` basis points
 
-- `function sellStablecoin(uint amount)` sell this contract stablecoins in exchange for ETH at the exchange rate determined by the `price` function
+`function tokenAmountNeeded() public view returns (uint256)`
 
-Rules
+- Returns the amount of tokens this contract is willing to exchange of ETH
+  - zero if it has enough tokens
+  - otherwise `baselinePaymentTokenAmount + payer.totalDebt() - paymentToken.balanceOf(address(payer))`
 
-- `amount` cannot exceed `stablecoinAmountNeeded()`
-- `msg.sender` must approve this contract to spend `amount` of stablecoin, which it will transfer to itself
-- should revert if `this.balance < amount / price()`
+`function price() public view returns (uint256)`
 
-##### `redeem` transactions
+- Returns the ETH/`paymentToken` price this contract is willing to exchange ETH at, including the discount
 
-Non-strict:
+`function ethAmountPerTokenAmount(uint256 tokenAmount) public view returns (uint256)`
 
-- `function redeem(uint amount)` redeem `amount` stablecoins in exchange for the same amount of NOU tokens you own
-- `function redeem()` same as above, using `msg.sender`'s NOU balance as the amount
+- Returns the amount of ETH this contract will send in exchange for `tokenAmount` tokens
 
-Strict:
+`function tokenAmountNeededAndETHPayout() public view returns (uint256, uint256)`
 
-- `function redeemExact(uint amount)` redeem `amount` stablecoins in exchange for the same amount of NOU tokens you own
-- `function redeemExact()` same as above, using `msg.sender`'s NOU balance as the amount
+- Returns the amount of tokens the contract can buy and the amount of ETH it will pay for it
 
-Rules
+`function tokenAmountPerEthAmount(uint256 ethAmount) public view returns (uint256)`
 
-- `iouToken.balanceOf(msg.sender) > 0` must be true
-- `amount` cannot exceed `iouToken.balanceOf(msg.sender)`
-- must call `iouToken.burn` with the amount of stablecoins sent to `msg.sender`
-- `redeemExact` functions should revert if `amount > stablecoin.balanceOf(this)`
+- Returns the amount of tokens the contract expects in return for eth
 
-##### `sendOrMint` transaction
+#### `buyETH` transaction
 
-- `function sendOrMint(address to, uint amount) payable`
-  - First attempts to send the full amount in stablecoins
-  - If `stablecoin.balance(this) < amount` the excess amount due is minting in `iouToken`
-  - Accepts ETH payments, allowing `NounsDAOExecutor` to provide ETH funding for buying `amount` stablecoins later
+##### Description
 
-Rules:
+- Buy ETH from this contract in exchange for `paymentToken` tokens
+- The price is determined using `priceFeed` plus `botDiscountBPs`
+- Immediately invokes `payer` to pay back outstanding debt
 
-- `msg.sender == admin`
+##### Rules
 
-##### Admin transactions
+`function buyETH(uint256 tokenAmount)`
 
-- `function withdrawETH()`
-- `function withdrawStablecoin()`
-- `function setBotIncentiveBPs(uint newBotIncentiveBPs)`
-- `function setAdmin(address newAdmin)`
-- `function setBaselineStablecoinAmount(uint newAmount)`
-- `function setPriceFeed(address newPriceFeed)`
+- `msg.sender` must approve this contract to spend `amount` of stablecoin, which it will transfer to `Payer`
+- should revert if contract has insufficient ETH balance
 
-Rules:
+`function buyETH(uint256 tokenAmount, address to, bytes calldata data)`
 
-- `msg.sender == admin`
+- `to` must implement the interface `IBuyETHCallback.buyETHCallback`
+- as part of `buyETHCallback`, sender must transfer `amount` stablecoins to `Payer`
+- should revert if contract has insufficient ETH balance
 
-##### `receive` transaction
+#### Admin / Owner transactions
 
-- This contract accepts ETH, allowing the DAO to top off its ETH balance without having to mint iou tokens
+##### General Rules
 
-Rules:
+- `msg.sender` must be `admin` or `owner`
 
+##### Specific Rules
+
+`function setBotDiscountBPs(uint16 newBotDiscountBPs)`
+
+- if `msg.sender == admin`, the new value must be within the min/max bounds set by `owner`
+
+`function setBaselinePaymentTokenAmount(uint256 newBaselinePaymentTokenAmount)`
+
+- if `msg.sender == admin`, the new value must be within the min/max bounds set by `owner`
+
+`function withdrawETH()`
+
+- the contract's ETH balance must be sent to `owner`
+- should revert if the transfer fails
+
+`function pause()`
+`function unpause()`
+`function setAdmin(address newAdmin)`
+
+- no additional rules
+
+#### Owner-only transactions
+
+##### Rules
+
+- `msg.sender` must be `owner`
+
+`function setMinAdminBotDiscountBPs(uint16 newMinAdminBotDiscountBPs)`
+`function setMaxAdminBotDiscountBPs(uint16 newMaxAdminBotDiscountBPs)`
+`function setMinAdminBaselinePaymentTokenAmount(uint256 newMinAdminBaselinePaymentTokenAmount)`
+`function setMaxAdminBaselinePaymentTokenAmount(uint256 newMaxAdminBaselinePaymentTokenAmount)`
+`function setPriceFeed(IPriceFeed newPriceFeed)`
+`function setPayer(address newPayer)`
+
+No function-specific rules.
+
+#### `receive` transaction
+
+- This contract accepts ETH, allowing the DAO to fund further stablecoin purchasing as needed
 - should not revert
 
-#### `IPriceFeed` interface
+### `Payer` contract
 
-The interface `NounsStablecoinPayments` uses to fetch stablecoin/ETH prices.
+This contract is used to pay recipients from a balance of ERC20 tokens, supporting a state of outstanding debt to recipients.
+
+#### Contract state variables
+
+Immutable:
+
+- `paymentToken` The ERC20 token used to pay users
+
+Mutable:
+
+- `totalDebt` The total debt owed, in `paymentToken` tokens
+- `queue` A queue of debt entries waiting to be paid
+
+#### `sendOrRegisterDebt` transaction
+
+`function sendOrRegisterDebt(address account, uint256 amount)`
+
+##### Description
+
+- Pays `account` an `amount` of `paymentToken`s
+- Adds a debt entry if there's not enough tokens
+
+##### Rules
+
+- msg.sender must be `owner`
+
+#### `payBackDebt` transaction
+
+`function payBackDebt(uint256 amount)`
+
+##### Description
+
+- Pays back debt up to `amount` of `paymentToken`
+- Debt is paid in FIFO order
+
+##### Rules
+
+- should only attempt to pay up to the contract's `paymentToken` balance
+
+### `IPriceFeed` interface
+
+The interface `TokenBuyer` uses to fetch ETH/stablecoin prices.
 
 - `function price()` returns the latest price
 
-#### `PriceFeed` contract
+### `PriceFeed` contract
 
 `PriceFeed` is the first implementation of `IPriceFeed`. It uses Chainlink as its only oracle, to avoid the extra gas costs of using multiple oracles, under the assumption that Chainlink is highly available.
 
-##### Constants
+#### Contract state variables
 
-- `STALE_AFTER` the maximum oracle refresh lag considered acceptable
+Immutable:
 
-##### State variables
+- `chainlink` Chainlink price feed
+- `decimals` Number of decimals of the chainlink price feed answer
+- `decimalFactor` A factor to multiply or divide by to get to 18 decimals
+- `staleAfter` Max staleness allowed from chainlink, in seconds
+- `priceLowerBound` Sanity check: minimal price allowed
+- `priceUpperBound` Sanity check: maximal price allowed
 
-- `immutable chainlinkAggregator` the address of the Chainlink price aggregator to fetch prices from
+#### `price` view function
 
-##### `price` view function
+##### Description
 
-- `function price()` returns the latest price from Chainlink
+- Returns the price of ETH/Token by fetching from Chainlink
 
-Rules:
+##### Rules
 
-- Reverts if Chainlink's latest price timestamp is older than `STALE_AFTER`
+- should revert if Chainlink's lastest update is older than `staleAfter` seconds ago
+- should revert if Chainlink's price is outside the min/max sanity bounds
 
 ### Implementation
 
-Hasn't started yet.
+[Token Buyer repo](https://github.com/nounsDAO/token-buyer/).
