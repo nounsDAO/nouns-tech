@@ -49,7 +49,7 @@ This specification introduces two new contracts that facilitate stablecoin payme
    2. send TokenBuyer ETH at the amount of `TokenBuyer.ethNeeded(100_000, 2)` (assuming we want a 2x volatility buffer)
 2. Upon proposal execution:
    1. Proposal recipient receives 100K stablecoins (e.g. USDC)
-   2. 133.33 ETH is sent from the treasury to `TokenBuyer` (assuming ETH/USD is $1500 and 2x buffer above)
+   2. 133.33 ETH is sent from the treasury to `TokenBuyer` (assuming ETH/USD is $1500 and 2x buffer above, and assuming Payer's balance is $0)
 3. Arbitrageurs sell USD to `TokenBuyer` in exchange for ETH:
    1. They call `TokenBuyer.buyETH(100_000)` (or smaller amounts across multiple txs)
       1. Expected to happen when `TokenBuyer.price()` is better than other DEX prices
@@ -70,7 +70,7 @@ Mutable:
 
 - `admin` contract admin, allowed to do certain lower risk operations
 - `payer` the `Payer` contract it helps fund with stablecoins
-- `priceFeed` the address of the `IPriceFeed` contract used to fetch stablecoin/ETH prices
+- `priceFeed` the address of the `IPriceFeed` contract used to fetch ETH/stablecoin prices
 - `baselineStablecoinAmount` The minimum `paymentToken` balance the `payer` contract should have
 - `minAdminBaselinePaymentTokenAmount` The minimum value for `baselinePaymentTokenAmount` that `admin` is allowed to set
 - `maxAdminBaselinePaymentTokenAmount` The maximum value for `baselinePaymentTokenAmount` that `admin` is allowed to set
@@ -118,13 +118,13 @@ Mutable:
 
 `function buyETH(uint256 tokenAmount)`
 
-- `msg.sender` must approve this contract to spend `amount` of stablecoin, which it will transfer to `Payer`
+- `msg.sender` must approve this contract to spend `tokenAmount` of stablecoin, which it will transfer to `Payer`
 - should revert if contract has insufficient ETH balance
 
 `function buyETH(uint256 tokenAmount, address to, bytes calldata data)`
 
 - `to` must implement the interface `IBuyETHCallback.buyETHCallback`
-- as part of `buyETHCallback`, sender must transfer `amount` stablecoins to `Payer`
+- as part of `buyETHCallback`, sender must transfer `tokenAmount` stablecoins to `Payer`
 - should revert if contract has insufficient ETH balance
 
 #### Admin / Owner transactions
@@ -161,10 +161,15 @@ Mutable:
 - `msg.sender` must be `owner`
 
 `function setMinAdminBotDiscountBPs(uint16 newMinAdminBotDiscountBPs)`
+
 `function setMaxAdminBotDiscountBPs(uint16 newMaxAdminBotDiscountBPs)`
+
 `function setMinAdminBaselinePaymentTokenAmount(uint256 newMinAdminBaselinePaymentTokenAmount)`
+
 `function setMaxAdminBaselinePaymentTokenAmount(uint256 newMaxAdminBaselinePaymentTokenAmount)`
+
 `function setPriceFeed(IPriceFeed newPriceFeed)`
+
 `function setPayer(address newPayer)`
 
 No function-specific rules.
