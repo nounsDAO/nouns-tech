@@ -35,7 +35,7 @@ This specification introduces two new contracts that facilitate stablecoin payme
 
 2. `Payer`, a contract that:
    1. allows the DAO to pay builders in stablecoins (e.g. USDC)
-   2. registers debt when the DAO's obligations exceed its stabecoin balance
+   2. registers debt when the DAO's obligations exceed its stablecoin balance
    3. allows anyone to run its outstanding debt payment function
 
 ## Technical Specification
